@@ -4,6 +4,18 @@ local default_option = {
   disable_omnifuncs = { 'v:lua.vim.lsp.omnifunc' }
 }
 
+local function remove_dupes(list)
+  local seen = {}
+  local new_list = {}
+  for _, v in ipairs(list) do
+    if not seen[v] then
+      table.insert(new_list, v)
+      seen[v] = true
+    end
+  end
+  return new_list
+end
+
 source.new = function()
   return setmetatable({}, { __index = source })
 end
@@ -42,27 +54,43 @@ source.complete = function(self, params, callback)
   }
 
   local items = {}
-  for _, v in ipairs(result) do
-    if type(v) == 'string' then
-      table.insert(items, {
-        label = v,
-        textEdit = {
-          range = text_edit_range,
-          newText = v,
-        },
-      })
-    elseif type(v) == 'table' then
-      table.insert(items, {
-        label = v.abbr or v.word,
-        textEdit = {
-          range = text_edit_range,
-          newText = v.word,
-        },
-        labelDetails = {
-          detail = v.kind,
-          description = v.menu,
-        },
-      })
+  --- Handle vim.treesitter.query.omnifunc format
+  if type(result.words) == 'table' then
+    local words = remove_dupes(result.words)
+    for _, word in ipairs(words) do
+      if type(word) == 'string' then
+        table.insert(items, {
+          label = word,
+          textEdit = {
+            range = text_edit_range,
+            newText = word,
+          },
+        })
+      end
+    end
+  else
+    for _, v in ipairs(result) do
+      if type(v) == 'string' then
+        table.insert(items, {
+          label = v,
+          textEdit = {
+            range = text_edit_range,
+            newText = v,
+          },
+        })
+      elseif type(v) == 'table' then
+        table.insert(items, {
+          label = v.abbr or v.word,
+          textEdit = {
+            range = text_edit_range,
+            newText = v.word,
+          },
+          labelDetails = {
+            detail = v.kind,
+            description = v.menu,
+          },
+        })
+      end
     end
   end
   callback({ items = items })
